@@ -169,49 +169,60 @@
     const db = getFirestore(app);
     const storage = getStorage(app);
 
-    // Enable offline persistence with retry logic
-    let persistenceAttempts = 0;
-    const maxPersistenceAttempts = 3;
+    // Connection state monitoring
+    let isConnected = false;
+    let connectionRetryCount = 0;
+    const maxConnectionRetries = 5;
+    const retryDelay = 2000; // 2 seconds
 
+    // Monitor connection state
+    onSnapshot(doc(db, '.info/connected'), (snap) => {
+      isConnected = snap.data()?.connected || false;
+      console.log('Firestore connection state:', isConnected ? 'connected' : 'disconnected');
+      
+      if (!isConnected) {
+        connectionRetryCount++;
+        if (connectionRetryCount <= maxConnectionRetries) {
+          console.log(`Connection lost, retry attempt ${connectionRetryCount} of ${maxConnectionRetries}`);
+          setTimeout(() => {
+            if (!isConnected) {
+              console.log('Attempting to reconnect...');
+              // Force a reconnection by triggering a read operation
+              getDoc(doc(db, '.info/connected')).catch(console.error);
+            }
+          }, retryDelay * connectionRetryCount);
+        } else {
+          console.error('Max connection retries reached');
+          alert('Unable to connect to the database. Please check your internet connection and try again.');
+        }
+      } else {
+        connectionRetryCount = 0;
+      }
+    });
+
+    // Enable offline persistence with improved error handling
     async function enablePersistenceWithRetry() {
       try {
-        await enableIndexedDbPersistence(db);
+        await enableIndexedDbPersistence(db, {
+          synchronizeTabs: true,
+          forceOwnership: true
+        });
         console.log('Firestore persistence enabled successfully');
       } catch (err) {
-        persistenceAttempts++;
-        if (persistenceAttempts < maxPersistenceAttempts) {
-          console.log(`Persistence attempt ${persistenceAttempts} failed, retrying...`);
-          setTimeout(enablePersistenceWithRetry, 1000 * persistenceAttempts);
+        console.error('Persistence error:', err);
+        if (err.code === 'failed-precondition') {
+          console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time');
+          alert('Please close other tabs of this application');
+        } else if (err.code === 'unimplemented') {
+          console.warn('Persistence not supported by browser');
+          alert('Your browser does not support offline functionality');
         } else {
-          if (err.code === 'failed-precondition') {
-            console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time');
-          } else if (err.code === 'unimplemented') {
-            console.warn('Persistence not supported by browser');
-          } else {
-            console.error('Failed to enable persistence:', err);
-          }
+          console.error('Failed to enable persistence:', err);
         }
       }
     }
 
     enablePersistenceWithRetry();
-
-    // Add connection state listener
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        console.log('User authenticated:', user.uid);
-        showPage(homePage);
-        logoutBtn.classList.remove('hidden');
-        renderHome();
-      } else {
-        console.log('No user authenticated');
-        showPage(loginPage);
-        logoutBtn.classList.add('hidden');
-      }
-    }, (error) => {
-      console.error('Auth state change error:', error);
-      alert('Authentication error: ' + error.message);
-    });
 
     // Add error handling for Firestore operations
     const handleFirestoreError = (error) => {
@@ -220,43 +231,54 @@
         alert('Please close other tabs of this application');
       } else if (error.code === 'unimplemented') {
         alert('Your browser does not support all required features');
+      } else if (error.code === 'permission-denied') {
+        alert('You do not have permission to perform this operation');
+      } else if (error.code === 'unavailable') {
+        alert('The service is currently unavailable. Please try again later.');
       } else {
         alert('Database error: ' + error.message);
       }
     };
 
-    // Update the fetchData function with error handling
+    // Update the fetchData function with improved error handling
     async function fetchData() {
       const user = auth.currentUser;
       if (!user) return;
 
       try {
-        // Fetch progress presets
-        const progressDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'progressPresets'));
-        if (progressDoc.exists()) {
+        // Fetch progress presets with retry logic
+        const progressDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'progressPresets'))
+          .catch(handleFirestoreError);
+        if (progressDoc?.exists()) {
           progressPresets = progressDoc.data().presets || progressPresets;
         }
 
-        // Fetch vendor presets
-        const vendorDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'vendorPresets'));
-        if (vendorDoc.exists()) {
+        // Fetch vendor presets with retry logic
+        const vendorDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'vendorPresets'))
+          .catch(handleFirestoreError);
+        if (vendorDoc?.exists()) {
           vendorPresets = vendorDoc.data().presets || vendorPresets;
         }
 
-        // Fetch jobs with real-time updates and sync to GitHub
-        const unsubscribe = onSnapshot(collection(db, 'users', user.uid, 'jobs'), 
+        // Fetch jobs with real-time updates and error handling
+        const unsubscribe = onSnapshot(
+          collection(db, 'users', user.uid, 'jobs'),
           (snapshot) => {
             jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             renderJobsTable();
-            // Sync jobs to GitHub
             updateGitHubJobs(jobs);
           },
           (error) => {
             handleFirestoreError(error);
+            // Attempt to reconnect
+            if (!isConnected) {
+              console.log('Attempting to reconnect to Firestore...');
+              getDoc(doc(db, '.info/connected')).catch(console.error);
+            }
           }
         );
 
-        // Fetch logo
+        // Fetch logo with error handling
         try {
           const logoUrl = await getDownloadURL(ref(storage, `users/${user.uid}/logo`));
           const logoContainer = document.getElementById('logo-container');
