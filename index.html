@@ -175,41 +175,26 @@
     const maxConnectionRetries = 5;
     const retryDelay = 2000; // 2 seconds
 
-    // Monitor connection state
-    onSnapshot(doc(db, '.info/connected'), (snap) => {
-      isConnected = snap.data()?.connected || false;
-      console.log('Firestore connection state:', isConnected ? 'connected' : 'disconnected');
-      
-      if (!isConnected) {
-        connectionRetryCount++;
-        if (connectionRetryCount <= maxConnectionRetries) {
-          console.log(`Connection lost, retry attempt ${connectionRetryCount} of ${maxConnectionRetries}`);
-          setTimeout(() => {
-            if (!isConnected) {
-              console.log('Attempting to reconnect...');
-              // Force a reconnection by triggering a read operation
-              getDoc(doc(db, '.info/connected')).catch(console.error);
-            }
-          }, retryDelay * connectionRetryCount);
-        } else {
-          console.error('Max connection retries reached');
-          alert('Unable to connect to the database. Please check your internet connection and try again.');
-        }
-      } else {
-        connectionRetryCount = 0;
-      }
-    });
-
-    // Enable offline persistence with improved error handling
-    async function enablePersistenceWithRetry() {
+    // Initialize Firebase with proper order of operations
+    async function initializeFirebase() {
       try {
+        // Enable persistence first, before any other operations
         await enableIndexedDbPersistence(db, {
           synchronizeTabs: true,
           forceOwnership: true
         });
         console.log('Firestore persistence enabled successfully');
+
+        // Set up connection monitoring
+        setupConnectionMonitoring();
+
+        // Set up authentication state listener
+        setupAuthStateListener();
+
+        // Initialize the rest of the application
+        initializeAppState();
       } catch (err) {
-        console.error('Persistence error:', err);
+        console.error('Initialization error:', err);
         if (err.code === 'failed-precondition') {
           console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time');
           alert('Please close other tabs of this application');
@@ -217,28 +202,106 @@
           console.warn('Persistence not supported by browser');
           alert('Your browser does not support offline functionality');
         } else {
-          console.error('Failed to enable persistence:', err);
+          console.error('Failed to initialize Firebase:', err);
+          alert('Failed to initialize the application. Please try again.');
         }
       }
     }
 
-    enablePersistenceWithRetry();
+    function setupConnectionMonitoring() {
+      onSnapshot(doc(db, '.info/connected'), (snap) => {
+        isConnected = snap.data()?.connected || false;
+        console.log('Firestore connection state:', isConnected ? 'connected' : 'disconnected');
+        
+        if (!isConnected) {
+          connectionRetryCount++;
+          if (connectionRetryCount <= maxConnectionRetries) {
+            console.log(`Connection lost, retry attempt ${connectionRetryCount} of ${maxConnectionRetries}`);
+            setTimeout(() => {
+              if (!isConnected) {
+                console.log('Attempting to reconnect...');
+                getDoc(doc(db, '.info/connected')).catch(console.error);
+              }
+            }, retryDelay * connectionRetryCount);
+          } else {
+            console.error('Max connection retries reached');
+            alert('Unable to connect to the database. Please check your internet connection and try again.');
+          }
+        } else {
+          connectionRetryCount = 0;
+        }
+      });
+    }
 
-    // Add error handling for Firestore operations
-    const handleFirestoreError = (error) => {
-      console.error('Firestore error:', error);
-      if (error.code === 'failed-precondition') {
-        alert('Please close other tabs of this application');
-      } else if (error.code === 'unimplemented') {
-        alert('Your browser does not support all required features');
-      } else if (error.code === 'permission-denied') {
-        alert('You do not have permission to perform this operation');
-      } else if (error.code === 'unavailable') {
-        alert('The service is currently unavailable. Please try again later.');
-      } else {
-        alert('Database error: ' + error.message);
-      }
-    };
+    function setupAuthStateListener() {
+      onAuthStateChanged(auth, 
+        (user) => {
+          if (user) {
+            console.log('User authenticated:', user.uid);
+            showPage(homePage);
+            logoutBtn.classList.remove('hidden');
+            renderHome();
+          } else {
+            console.log('No user authenticated');
+            showPage(loginPage);
+            logoutBtn.classList.add('hidden');
+          }
+        },
+        (error) => {
+          console.error('Auth state change error:', error);
+          alert('Authentication error: ' + error.message);
+        }
+      );
+    }
+
+    function initializeAppState() {
+      // Add error handling for Firestore operations
+      window.handleFirestoreError = (error) => {
+        console.error('Firestore error:', error);
+        if (error.code === 'failed-precondition') {
+          alert('Please close other tabs of this application');
+        } else if (error.code === 'unimplemented') {
+          alert('Your browser does not support all required features');
+        } else if (error.code === 'permission-denied') {
+          alert('You do not have permission to perform this operation');
+        } else if (error.code === 'unavailable') {
+          alert('The service is currently unavailable. Please try again later.');
+        } else {
+          alert('Database error: ' + error.message);
+        }
+      };
+
+      // Set up event listeners
+      setupEventListeners();
+    }
+
+    function setupEventListeners() {
+      document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        try {
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          console.log('Login successful:', userCredential.user);
+        } catch (error) {
+          console.error('Login error:', error);
+          alert('Login failed: ' + error.message);
+        }
+      });
+
+      document.getElementById('logout-btn').addEventListener('click', async () => {
+        try {
+          await signOut(auth);
+          console.log('Logout successful');
+        } catch (error) {
+          console.error('Logout error:', error);
+          alert('Logout failed: ' + error.message);
+        }
+      });
+    }
+
+    // Start the initialization process
+    initializeFirebase();
 
     // Update the fetchData function with improved error handling
     async function fetchData() {
@@ -403,29 +466,6 @@
         showPage(loginPage);
       }
     }
-
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        console.log('Login successful:', userCredential.user);
-      } catch (error) {
-        console.error('Login error:', error);
-        alert('Login failed: ' + error.message);
-      }
-    });
-
-    document.getElementById('logout-btn').addEventListener('click', async () => {
-      try {
-        await signOut(auth);
-        console.log('Logout successful');
-      } catch (error) {
-        console.error('Logout error:', error);
-        alert('Logout failed: ' + error.message);
-      }
-    });
 
     // Jobs table rendering
     function renderJobsTable() {
