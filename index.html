@@ -146,18 +146,18 @@
 
   <!-- Firebase SDK -->
   <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js';
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js';
-    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js';
-    import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-storage.js';
-    import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-analytics.js';
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+    import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js';
+    import { getAnalytics } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js';
     import config from './config.js';
 
     const firebaseConfig = {
       apiKey: "AIzaSyD9Epb8STsVqBAPd3PAKZzkaJrXBDr4mzI",
       authDomain: "invictus-construction-sa-d1855.firebaseapp.com",
       projectId: "invictus-construction-sa-d1855",
-      storageBucket: "invictus-construction-sa-d1855.firebasestorage.app",
+      storageBucket: "invictus-construction-sa-d1855.appspot.com",
       messagingSenderId: "503049267426",
       appId: "1:503049267426:web:fcfd559ef3b8eef4fe96bb",
       measurementId: "G-6T1J5FC73H"
@@ -168,6 +168,17 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
     const storage = getStorage(app);
+
+    // Enable offline persistence
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a time.
+        console.log('Persistence failed: Multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        // The current browser does not support all of the features required for persistence
+        console.log('Persistence not supported by browser');
+      }
+    });
 
     // GitHub Configuration
     const githubConfig = config.github;
@@ -274,8 +285,12 @@
     }
 
     function goHome() {
-      showPage(homePage);
-      renderHome();
+      if (auth.currentUser) {
+        showPage(homePage);
+        renderHome();
+      } else {
+        showPage(loginPage);
+      }
     }
 
     // Authentication handling
@@ -295,14 +310,22 @@
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
       try {
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        console.log('Login successful:', userCredential.user);
       } catch (error) {
+        console.error('Login error:', error);
         alert('Login failed: ' + error.message);
       }
     });
 
     document.getElementById('logout-btn').addEventListener('click', async () => {
-      await signOut(auth);
+      try {
+        await signOut(auth);
+        console.log('Logout successful');
+      } catch (error) {
+        console.error('Logout error:', error);
+        alert('Logout failed: ' + error.message);
+      }
     });
 
     // Data fetching and syncing
@@ -408,12 +431,19 @@
 
     // Add job
     document.getElementById('add-job-btn').addEventListener('click', async () => {
-      if (!auth.currentUser) return;
+      console.log('Add job button clicked');
+      if (!auth.currentUser) {
+        console.log('No authenticated user');
+        return;
+      }
       const name = document.getElementById('new-job-name').value;
       const address = document.getElementById('new-job-address').value;
       const progress = document.getElementById('new-job-progress').value;
       const startDate = document.getElementById('new-job-start').value;
       const endDate = document.getElementById('new-job-end').value;
+      
+      console.log('Form values:', { name, address, progress, startDate, endDate });
+      
       if (name && address && progress && startDate && endDate) {
         const job = {
           id: generateUUID(),
@@ -433,12 +463,24 @@
           scopeImage: null,
           quoteImage: null
         };
-        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', job.id), job);
-        document.getElementById('new-job-name').value = '';
-        document.getElementById('new-job-address').value = '';
-        document.getElementById('new-job-progress').value = progressPresets[0].value;
-        document.getElementById('new-job-start').value = '';
-        document.getElementById('new-job-end').value = '';
+        try {
+          console.log('Attempting to save job to Firestore');
+          await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', job.id), job);
+          console.log('Job saved successfully');
+          
+          // Clear form
+          document.getElementById('new-job-name').value = '';
+          document.getElementById('new-job-address').value = '';
+          document.getElementById('new-job-progress').value = progressPresets[0].value;
+          document.getElementById('new-job-start').value = '';
+          document.getElementById('new-job-end').value = '';
+        } catch (error) {
+          console.error('Error saving job:', error);
+          alert('Error saving job: ' + error.message);
+        }
+      } else {
+        console.log('Missing required fields');
+        alert('Please fill in all fields');
       }
     });
 
