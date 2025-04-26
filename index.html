@@ -169,16 +169,105 @@
     const db = getFirestore(app);
     const storage = getStorage(app);
 
-    // Enable offline persistence
-    enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code === 'failed-precondition') {
-        // Multiple tabs open, persistence can only be enabled in one tab at a time.
-        console.log('Persistence failed: Multiple tabs open');
-      } else if (err.code === 'unimplemented') {
-        // The current browser does not support all of the features required for persistence
-        console.log('Persistence not supported by browser');
+    // Enable offline persistence with retry logic
+    let persistenceAttempts = 0;
+    const maxPersistenceAttempts = 3;
+
+    async function enablePersistenceWithRetry() {
+      try {
+        await enableIndexedDbPersistence(db);
+        console.log('Firestore persistence enabled successfully');
+      } catch (err) {
+        persistenceAttempts++;
+        if (persistenceAttempts < maxPersistenceAttempts) {
+          console.log(`Persistence attempt ${persistenceAttempts} failed, retrying...`);
+          setTimeout(enablePersistenceWithRetry, 1000 * persistenceAttempts);
+        } else {
+          if (err.code === 'failed-precondition') {
+            console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time');
+          } else if (err.code === 'unimplemented') {
+            console.warn('Persistence not supported by browser');
+          } else {
+            console.error('Failed to enable persistence:', err);
+          }
+        }
       }
+    }
+
+    enablePersistenceWithRetry();
+
+    // Add connection state listener
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        console.log('User authenticated:', user.uid);
+        showPage(homePage);
+        logoutBtn.classList.remove('hidden');
+        renderHome();
+      } else {
+        console.log('No user authenticated');
+        showPage(loginPage);
+        logoutBtn.classList.add('hidden');
+      }
+    }, (error) => {
+      console.error('Auth state change error:', error);
+      alert('Authentication error: ' + error.message);
     });
+
+    // Add error handling for Firestore operations
+    const handleFirestoreError = (error) => {
+      console.error('Firestore error:', error);
+      if (error.code === 'failed-precondition') {
+        alert('Please close other tabs of this application');
+      } else if (error.code === 'unimplemented') {
+        alert('Your browser does not support all required features');
+      } else {
+        alert('Database error: ' + error.message);
+      }
+    };
+
+    // Update the fetchData function with error handling
+    async function fetchData() {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      try {
+        // Fetch progress presets
+        const progressDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'progressPresets'));
+        if (progressDoc.exists()) {
+          progressPresets = progressDoc.data().presets || progressPresets;
+        }
+
+        // Fetch vendor presets
+        const vendorDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'vendorPresets'));
+        if (vendorDoc.exists()) {
+          vendorPresets = vendorDoc.data().presets || vendorPresets;
+        }
+
+        // Fetch jobs with real-time updates and sync to GitHub
+        const unsubscribe = onSnapshot(collection(db, 'users', user.uid, 'jobs'), 
+          (snapshot) => {
+            jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderJobsTable();
+            // Sync jobs to GitHub
+            updateGitHubJobs(jobs);
+          },
+          (error) => {
+            handleFirestoreError(error);
+          }
+        );
+
+        // Fetch logo
+        try {
+          const logoUrl = await getDownloadURL(ref(storage, `users/${user.uid}/logo`));
+          const logoContainer = document.getElementById('logo-container');
+          logoContainer.innerHTML = `<img src="${logoUrl}" alt="Logo" class="h-12" />`;
+        } catch (error) {
+          console.log('No logo exists or error fetching logo:', error);
+        }
+      } catch (error) {
+        handleFirestoreError(error);
+      }
+    }
 
     // GitHub Configuration
     const githubConfig = config.github;
@@ -293,18 +382,6 @@
       }
     }
 
-    // Authentication handling
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        showPage(homePage);
-        logoutBtn.classList.remove('hidden');
-        renderHome();
-      } else {
-        showPage(loginPage);
-        logoutBtn.classList.add('hidden');
-      }
-    });
-
     document.getElementById('login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value;
@@ -325,53 +402,6 @@
       } catch (error) {
         console.error('Logout error:', error);
         alert('Logout failed: ' + error.message);
-      }
-    });
-
-    // Data fetching and syncing
-    async function fetchData() {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      // Fetch progress presets
-      const progressDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'progressPresets'));
-      if (progressDoc.exists()) {
-        progressPresets = progressDoc.data().presets || progressPresets;
-      }
-
-      // Fetch vendor presets
-      const vendorDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'vendorPresets'));
-      if (vendorDoc.exists()) {
-        vendorPresets = vendorDoc.data().presets || vendorPresets;
-      }
-
-      // Fetch jobs with real-time updates and sync to GitHub
-      onSnapshot(collection(db, 'users', user.uid, 'jobs'), (snapshot) => {
-        jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        renderJobsTable();
-        // Sync jobs to GitHub
-        updateGitHubJobs(jobs);
-      });
-
-      // Fetch logo
-      try {
-        const logoUrl = await getDownloadURL(ref(storage, `users/${user.uid}/logo`));
-        const logoContainer = document.getElementById('logo-container');
-        logoContainer.innerHTML = `<img src="${logoUrl}" alt="Logo" class="h-12" />`;
-      } catch (error) {
-        // No logo exists
-      }
-    }
-
-    // Logo upload
-    document.getElementById('logo-upload').addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (file && auth.currentUser) {
-        const storageRef = ref(storage, `users/${auth.currentUser.uid}/logo`);
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        const logoContainer = document.getElementById('logo-container');
-        logoContainer.innerHTML = `<img src="${url}" alt="Logo" class="h-12" />`;
       }
     });
 
