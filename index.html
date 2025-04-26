@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invictus Construction Sarnia</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #ffffff; color: #1f2937; font-family: sans-serif; }
+    .draggable { cursor: move; }
+    .draggable.dragging { opacity: 0.5; }
+    .calendar-day { min-h-[80px] sm:min-h-[100px] border: 1px solid #e5e7eb; padding: 4px; }
+    .calendar-day.today { background-color: #e0f2fe; }
+    .editable:hover { background-color: #f3f4f6; }
+    .progress-select { min-width: 150px; }
+  </style>
+</head>
+<body class="min-h-screen pt-16">
+  <!-- Navbar -->
+  <nav class="bg-blue-900 text-white fixed w-full top-0 z-10 shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
+      <h1 class="text-xl font-bold">Invictus Construction Sarnia</h1>
+      <div id="nav-links" class="flex space-x-4">
+        <button onclick="goHome()" class="hover:text-gray-300">Home</button>
+        <button id="logout-btn" class="hover:text-gray-300 hidden">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Login Page -->
+  <div id="login-page" class="flex items-center justify-center h-screen">
+    <div class="bg-gray-100 p-8 rounded-lg shadow-lg">
+      <h2 class="text-2xl font-bold mb-4">Login</h2>
+      <form id="login-form">
+        <input
+          type="email"
+          id="email"
+          placeholder="Email"
+          class="w-full p-2 mb-4 bg-white rounded border border-gray-300 text-gray-900"
+        />
+        <input
+          type="password"
+          id="password"
+          placeholder="Password"
+          class="w-full p-2 mb-4 bg-white rounded border border-gray-300 text-gray-900"
+        />
+        <button type="submit" class="w-full p-2 bg-blue-700 rounded hover:bg-blue-600 text-white">
+          Login
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Home Page -->
+  <div id="home-page" class="mx-auto p-1 px-2 sm:max-w-7xl flex flex-col sm:flex-row hidden">
+    <div class="w-full sm:flex-1 sm:mr-4 mb-4 sm:mb-0">
+      <div class="flex justify-between items-center mb-4">
+        <div class="flex items-center">
+          <div id="logo-container" class="mr-4">
+            <input type="file" id="logo-upload" accept="image/*" class="hidden" />
+            <label for="logo-upload" class="cursor-pointer p-2 bg-blue-700 rounded hover:bg-blue-600 text-white">Upload Logo</label>
+          </div>
+          <h2 class="text-2xl font-bold">Upcoming Jobs</h2>
+        </div>
+      </div>
+      <div id="jobs-table" class="overflow-x-auto mb-8">
+        <table class="w-full bg-white rounded border border-gray-300">
+          <thead>
+            <tr class="bg-gray-100">
+              <th class="p-2 text-left border-b">Job Name</th>
+              <th class="p-2 text-left border-b">Address</th>
+              <th class="p-2 text-left border-b">Progress</th>
+              <th class="p-2 text-left border-b">Start Date</th>
+              <th class="p-2 text-left border-b">End Date</th>
+              <th class="p-2 text-left border-b">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="jobs-table-body"></tbody>
+          <tr>
+            <td class="p-2 border-b"><input id="new-job-name" class="p-1 bg-white rounded w-full border border-gray-300" /></td>
+            <td class="p-2 border-b"><input id="new-job-address" class="p-1 bg-white rounded w-full border border-gray-300" /></td>
+            <td class="p-2 border-b">
+              <select id="new-job-progress" class="p-1 bg-white rounded w-full border border-gray-300 progress-select"></select>
+            </td>
+            <td class="p-2 border-b"><input type="date" id="new-job-start" class="p-1 bg-white rounded w-full border border-gray-300" /></td>
+            <td class="p-2 border-b"><input type="date" id="new-job-end" class="p-1 bg-white rounded w-full border border-gray-300" /></td>
+            <td class="p-2 border-b">
+              <button id="add-job-btn" class="p-1 bg-blue-700 rounded text-white">Add</button>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <details class="bg-white p-4 rounded border border-gray-300">
+        <summary class="font-bold cursor-pointer">Settings</summary>
+        <div class="mt-4">
+          <h4 class="font-bold">Progress Presets</h4>
+          <div id="progress-presets" class="mb-2"></div>
+          <input id="progress-value" placeholder="Value (%)" class="p-1 bg-white rounded border border-gray-300 mr-2" />
+          <input id="progress-label" placeholder="Label" class="p-1 bg-white rounded border border-gray-300 mr-2" />
+          <input id="progress-color" type="color" class="p-1 rounded mr-2" />
+          <button id="add-progress-preset" class="p-1 bg-blue-700 rounded text-white">Add</button>
+        </div>
+        <div>
+          <h4 class="font-bold">Vendor/Supplier Presets</h4>
+          <div id="vendor-presets" class="mb-2"></div>
+          <input id="vendor-value" placeholder="Vendor/Supplier" class="p-1 bg-white rounded border border-gray-300 mr-2" />
+          <button id="add-vendor-preset" class="p-1 bg-blue-700 rounded text-white">Add</button>
+        </div>
+      </details>
+    </div>
+    <div class="w-full sm:w-2/3 p-2 sm:p-4">
+      <div id="calendar" class="bg-white p-4 rounded border border-gray-300">
+        <div class="flex justify-between mb-4">
+          <button id="prev-month" class="p-1 bg-blue-700 rounded text-white"><</button>
+          <h3 id="calendar-month" class="text-lg font-bold"></h3>
+          <button id="next-month" class="p-1 bg-blue-700 rounded text-white">></button>
+        </div>
+        <div class="grid grid-cols-7 gap-1 mb-2">
+          <div class="bg-gray-100 border border-gray-300 p-2 text-center font-bold text-sm sm:text-base">Sun</div>
+          <div class="bg-gray-100 border border-gray-300 p-2 text-center font-bold text-sm sm:text-base">Mon</div>
+          <div class="bg-gray-100 border border-gray-300 p-2 text-center font-bold text-sm sm:text-base">Tue</div>
+          <div class="bg-gray-100 border border-gray-300 p-2 text-center font-bold text-sm sm:text-base">Wed</div>
+          <div class="bg-gray-100 border border-gray-300 p-2 text-center font-bold text-sm sm:text-base">Thu</div>
+          <div class="bg-gray-100 border border-gray-300 p-2 text-center font-bold text-sm sm:text-base">Fri</div>
+          <div class="bg-gray-100 border border-gray-300 p-2 text-center font-bold text-sm sm:text-base">Sat</div>
+        </div>
+        <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Job Page -->
+  <div id="job-page" class="max-w-7xl mx-auto p-4 hidden">
+    <h2 id="job-title" class="text-2xl font-bold mb-4"></h2>
+    <div id="job-sections" class="space-y-4"></div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js';
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js';
+    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js';
+    import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-storage.js';
+    import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-analytics.js';
+
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID",
+      measurementId: "YOUR_MEASUREMENT_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    // GitHub Configuration (Replace with your details)
+    const githubConfig = {
+      token: 'YOUR_GITHUB_PERSONAL_ACCESS_TOKEN', // Securely store this (see notes)
+      repo: 'YOUR_USERNAME/YOUR_REPOSITORY', // e.g., 'username/invictus-construction'
+      branch: 'main', // or 'gh-pages' if using GitHub Pages
+      path: 'data/jobs.json' // Path in repo where jobs.json will be stored
+    };
+
+    // Utility functions
+    function generateUUID() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+    }
+
+    function getDatesBetween(startDate, endDate) {
+      const dates = [];
+      let current = new Date(startDate);
+      const end = new Date(endDate);
+      while (current <= end) {
+        dates.push(current.toISOString().split('T')[0]);
+        current.setDate(current.getDate() + 1);
+      }
+      return dates;
+    }
+
+    // GitHub API: Get file SHA (needed for updates)
+    async function getFileSha() {
+      try {
+        const response = await fetch(`https://api.github.com/repos/${githubConfig.repo}/contents/${githubConfig.path}?ref=${githubConfig.branch}`, {
+          headers: {
+            'Authorization': `token ${githubConfig.token}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data.sha;
+        }
+        return null; // File doesn't exist yet
+      } catch (error) {
+        console.error('Error fetching file SHA:', error);
+        return null;
+      }
+    }
+
+    // GitHub API: Update jobs.json
+    async function updateGitHubJobs(jobsData) {
+      const content = JSON.stringify(jobsData, null, 2);
+      const sha = await getFileSha();
+      const body = {
+        message: `Update jobs.json ${new Date().toISOString()}`,
+        content: btoa(content), // Base64 encode
+        branch: githubConfig.branch
+      };
+      if (sha) {
+        body.sha = sha; // Include SHA for updates
+      }
+
+      try {
+        const response = await fetch(`https://api.github.com/repos/${githubConfig.repo}/contents/${githubConfig.path}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${githubConfig.token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          throw new Error(`GitHub API error: ${response.statusText}`);
+        }
+        console.log('Successfully updated jobs.json on GitHub');
+      } catch (error) {
+        console.error('Error updating jobs.json on GitHub:', error);
+      }
+    }
+
+    // State management
+    let jobs = [];
+    let progressPresets = [
+      { value: '0', label: '0%', color: '#EF4444' },
+      { value: '25', label: '25%', color: '#F59E0B' },
+      { value: '50', label: '50%', color: '#3B82F6' },
+      { value: '75', label: '75%', color: '#10B981' },
+      { value: '100', label: '100%', color: '#4CAF50' }
+    ];
+    let vendorPresets = [
+      { value: 'Vendor A', color: '#4CAF50' },
+      { value: 'Vendor B', color: '#2196F3' },
+      { value: 'Vendor C', color: '#FFC107' }
+    ];
+    let currentJob = null;
+    let currentDate = new Date();
+
+    // Page management
+    const loginPage = document.getElementById('login-page');
+    const homePage = document.getElementById('home-page');
+    const jobPage = document.getElementById('job-page');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    function showPage(page) {
+      loginPage.classList.add('hidden');
+      homePage.classList.add('hidden');
+      jobPage.classList.add('hidden');
+      page.classList.remove('hidden');
+    }
+
+    function goHome() {
+      showPage(homePage);
+      renderHome();
+    }
+
+    // Authentication handling
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        showPage(homePage);
+        logoutBtn.classList.remove('hidden');
+        renderHome();
+      } else {
+        showPage(loginPage);
+        logoutBtn.classList.add('hidden');
+      }
+    });
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (error) {
+        alert('Login failed: ' + error.message);
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await signOut(auth);
+    });
+
+    // Data fetching and syncing
+    async function fetchData() {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      // Fetch progress presets
+      const progressDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'progressPresets'));
+      if (progressDoc.exists()) {
+        progressPresets = progressDoc.data().presets || progressPresets;
+      }
+
+      // Fetch vendor presets
+      const vendorDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'vendorPresets'));
+      if (vendorDoc.exists()) {
+        vendorPresets = vendorDoc.data().presets || vendorPresets;
+      }
+
+      // Fetch jobs with real-time updates and sync to GitHub
+      onSnapshot(collection(db, 'users', user.uid, 'jobs'), (snapshot) => {
+        jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderJobsTable();
+        // Sync jobs to GitHub
+        updateGitHubJobs(jobs);
+      });
+
+      // Fetch logo
+      try {
+        const logoUrl = await getDownloadURL(ref(storage, `users/${user.uid}/logo`));
+        const logoContainer = document.getElementById('logo-container');
+        logoContainer.innerHTML = `<img src="${logoUrl}" alt="Logo" class="h-12" />`;
+      } catch (error) {
+        // No logo exists
+      }
+    }
+
+    // Logo upload
+    document.getElementById('logo-upload').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (file && auth.currentUser) {
+        const storageRef = ref(storage, `users/${auth.currentUser.uid}/logo`);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        const logoContainer = document.getElementById('logo-container');
+        logoContainer.innerHTML = `<img src="${url}" alt="Logo" class="h-12" />`;
+      }
+    });
+
+    // Jobs table rendering
+    function renderJobsTable() {
+      const tbody = document.getElementById('jobs-table-body');
+      tbody.innerHTML = '';
+      jobs.forEach(job => {
+        const selectedPreset = progressPresets.find(p => p.value === job.progress);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="p-2 border-b">
+            <div contenteditable="true" class="editable p-1" onblur="updateJob('${job.id}', 'name', this.innerText)">${job.name}</div>
+          </td>
+          <td class="p-2 border-b">
+            <div contenteditable="true" class="editable p-1" onblur="updateJob('${job.id}', 'address', this.innerText)">${job.address}</div>
+          </td>
+          <td class="p-2 border-b">
+            <select class="p-1 bg-white rounded w-full border border-gray-300 progress-select" style="background-color: ${selectedPreset ? selectedPreset.color : '#ffffff'}" onchange="updateJob('${job.id}', 'progress', this.value); this.style.backgroundColor = progressPresets.find(p => p.value === this.value).color">
+              ${progressPresets.map(p => `
+                <option value="${p.value}" style="background-color: ${p.color}" ${job.progress === p.value ? 'selected' : ''}>${p.label}</option>
+              `).join('')}
+            </select>
+          </td>
+          <td class="p-2 border-b">
+            <input type="date" value="${job.startDate}" class="p-1 bg-white rounded w-full border border-gray-300" onchange="updateJob('${job.id}', 'startDate', this.value)" />
+          </td>
+          <td class="p-2 border-b">
+            <input type="date" value="${job.endDate}" class="p-1 bg-white rounded w-full border border-gray-300" onchange="updateJob('${job.id}', 'endDate', this.value)" />
+          </td>
+          <td class="p-2 border-b">
+            <button onclick="showJobPage('${job.id}')" class="p-1 bg-blue-600 rounded mr-2 text-white">View</button>
+            <button onclick="deleteJob('${job.id}')" class="p-1 bg-red-600 rounded text-white">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      renderCalendar();
+      renderProgressPresets();
+      renderVendorPresets();
+      const progressSelect = document.getElementById('new-job-progress');
+      progressSelect.innerHTML = progressPresets.map(p => `
+        <option value="${p.value}" style="background-color: ${p.color}">${p.label}</option>
+      `).join('');
+      progressSelect.className = 'p-1 bg-white rounded w-full border border-gray-300 progress-select';
+      if (progressSelect.value) {
+        const preset = progressPresets.find(p => p.value === progressSelect.value);
+        if (preset) progressSelect.style.backgroundColor = preset.color;
+      }
+    }
+
+    window.updateJob = async (id, field, value) => {
+      if (!auth.currentUser) return;
+      const jobRef = doc(db, 'users', auth.currentUser.uid, 'jobs', id);
+      await setDoc(jobRef, { [field]: value }, { merge: true });
+    };
+
+    // Add job
+    document.getElementById('add-job-btn').addEventListener('click', async () => {
+      if (!auth.currentUser) return;
+      const name = document.getElementById('new-job-name').value;
+      const address = document.getElementById('new-job-address').value;
+      const progress = document.getElementById('new-job-progress').value;
+      const startDate = document.getElementById('new-job-start').value;
+      const endDate = document.getElementById('new-job-end').value;
+      if (name && address && progress && startDate && endDate) {
+        const job = {
+          id: generateUUID(),
+          name,
+          address,
+          progress,
+          startDate,
+          endDate,
+          revenue: [],
+          expenses: [],
+          scopeText: '',
+          scope: [{ id: generateUUID(), Description: '' }],
+          scopeColumns: [{ key: 'Description', label: 'Description' }],
+          quoteText: '',
+          quote: [{ id: generateUUID(), Description: '' }],
+          quoteColumns: [{ key: 'Description', label: 'Description' }],
+          scopeImage: null,
+          quoteImage: null
+        };
+        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', job.id), job);
+        document.getElementById('new-job-name').value = '';
+        document.getElementById('new-job-address').value = '';
+        document.getElementById('new-job-progress').value = progressPresets[0].value;
+        document.getElementById('new-job-start').value = '';
+        document.getElementById('new-job-end').value = '';
+      }
+    });
+
+    // Delete job
+    window.deleteJob = async (id) => {
+      if (!auth.currentUser) return;
+      await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', id));
+    };
+
+    // Presets management
+    function renderProgressPresets() {
+      const presetsDiv = document.getElementById('progress-presets');
+      presetsDiv.innerHTML = '';
+      progressPresets.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center mb-2';
+        div.innerHTML = `
+          <span class="mr-2" style="color: ${p.color}">${p.label} (${p.value}%)</span>
+          <button onclick="deleteProgressPreset('${p.value}')" class="p-1 bg-red-600 rounded text-white">Delete</button>
+        `;
+        presetsDiv.appendChild(div);
+      });
+    }
+
+    window.deleteProgressPreset = async (value) => {
+      if (!auth.currentUser) return;
+      progressPresets = progressPresets.filter(p => p.value !== value);
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'progressPresets'), { presets: progressPresets });
+      renderJobsTable();
+    };
+
+    document.getElementById('add-progress-preset').addEventListener('click', async () => {
+      if (!auth.currentUser) return;
+      const value = document.getElementById('progress-value').value;
+      const label = document.getElementById('progress-label').value;
+      const color = document.getElementById('progress-color').value;
+      if (value && label && color) {
+        progressPresets.push({ value, label, color });
+        await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'progressPresets'), { presets: progressPresets });
+        renderJobsTable();
+        document.getElementById('progress-value').value = '';
+        document.getElementById('progress-label').value = '';
+        document.getElementById('progress-color').value = '#000000';
+      }
+    });
+
+    function renderVendorPresets() {
+      const presetsDiv = document.getElementById('vendor-presets');
+      presetsDiv.innerHTML = '';
+      vendorPresets.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center mb-2';
+        div.innerHTML = `
+          <span class="mr-2" style="color: ${p.color}">${p.value}</span>
+          <button onclick="deleteVendorPreset('${p.value}')" class="p-1 bg-red-600 rounded text-white">Delete</button>
+        `;
+        presetsDiv.appendChild(div);
+      });
+    }
+
+    window.deleteVendorPreset = async (value) => {
+      if (!auth.currentUser) return;
+      vendorPresets = vendorPresets.filter(p => p.value !== value);
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'vendorPresets'), { presets: vendorPresets });
+      renderJobsTable();
+    };
+
+    document.getElementById('add-vendor-preset').addEventListener('click', async () => {
+      if (!auth.currentUser) return;
+      const value = document.getElementById('vendor-value').value;
+      if (value) {
+        vendorPresets.push({ value, color: '#000000' });
+        await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'vendorPresets'), { presets: vendorPresets });
+        renderJobsTable();
+        document.getElementById('vendor-value').value = '';
+      }
+    });
+
+    // Calendar rendering
+    function renderCalendar() {
+      const monthDisplay = document.getElementById('calendar-month');
+      const grid = document.getElementById('calendar-grid');
+      grid.innerHTML = '';
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      monthDisplay.textContent = `${currentDate.toLocaleString('default', { month: 'long' })} ${year}`;
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const today = new Date();
+      const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+      for (let i = 0; i < firstDay; i++) {
+        const div = document.createElement('div');
+        div.className = 'calendar-day';
+        grid.appendChild(div);
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const div = document.createElement('div');
+        div.className = `calendar-day ${isCurrentMonth && day === today.getDate() ? 'today' : ''}`;
+        div.innerHTML = `<div class="font-bold text-sm sm:text-base">${day}</div>`;
+        const dayDate = new Date(year, month, day).toISOString().split('T')[0];
+        jobs.forEach(job => {
+          const jobDates = getDatesBetween(job.startDate, job.endDate);
+          if (jobDates.includes(dayDate)) {
+            const jobDiv = document.createElement('div');
+            jobDiv.className = 'text-xs sm:text-sm cursor-pointer hover:underline bg-blue-100 p-1 rounded mt-1';
+            jobDiv.textContent = job.name;
+            jobDiv.onclick = () => showJobPage(job.id);
+            div.appendChild(jobDiv);
+          }
+        });
+        grid.appendChild(div);
+      }
+    }
+
+    document.getElementById('prev-month').addEventListener('click', () => {
+      currentDate.setMonth(currentDate.getMonth() - 1);
+      renderCalendar();
+    });
+
+    document.getElementById('next-month').addEventListener('click', () => {
+      currentDate.setMonth(currentDate.getMonth() + 1);
+      renderCalendar();
+    });
+
+    // Job page rendering
+    window.showJobPage = async (jobId) => {
+      currentJob = jobs.find(j => j.id === jobId);
+      if (!currentJob) return;
+      showPage(jobPage);
+      document.getElementById('job-title').textContent = currentJob.name;
+      const sections = document.getElementById('job-sections');
+      sections.innerHTML = '';
+      const layout = [
+        { id: 'tables', type: 'tables' },
+        { id: 'scope', type: 'table' },
+        { id: 'quote', type: 'table' }
+      ];
+      layout.forEach(section => {
+        const div = document.createElement('div');
+        div.className = 'border border-gray-300 rounded draggable';
+        div.draggable = true;
+        div.dataset.id = section.id;
+        div.innerHTML = renderSection(section.id);
+        sections.appendChild(div);
+      });
+      setupDragAndDrop();
+    };
+
+    function renderSection(id) {
+      switch (id) {
+        case 'tables':
+          return `
+            <div class="bg-white p-4 rounded flex flex-col sm:flex-row sm:space-x-4">
+              <div class="flex-1 mb-4 sm:mb-0">
+                <h3 class="text-lg font-bold mb-2">Revenue</h3>
+                ${renderTable(currentJob.revenue, 'revenue', [
+                  { key: 'date', label: 'Date', type: 'date' },
+                  { key: 'purchase', label: 'Purchase', type: 'text' },
+                  { key: 'method', label: 'Method', type: 'select', options: [
+                    { value: 'Cash', color: '#4CAF50' },
+                    { value: 'Credit', color: '#2196F3' },
+                    { value: 'Check', color: '#FFC107' }
+                  ]},
+                  { key: 'cost', label: 'Cost', type: 'text' }
+                ])}
+              </div>
+              <div class="flex-1">
+                <h3 class="text-lg font-bold mb-2">Expenses</h3>
+                ${renderTable(currentJob.expenses, 'expenses', [
+                  { key: 'date', label: 'Date', type: 'date' },
+                  { key: 'purchase', label: 'Purchase', type: 'text' },
+                  { key: 'method', label: 'Method', type: 'select', options: [
+                    { value: 'Cash', color: '#4CAF50' },
+                    { value: 'Credit', color: '#2196F3' },
+                    { value: 'Check', color: '#FFC107' }
+                  ]},
+                  { key: 'cost', label: 'Cost', type: 'text' },
+                  { key: 'vendor', label: 'Vendor/Supplier', type: 'select', options: vendorPresets }
+                ])}
+              </div>
+            </div>
+          `;
+        case 'scope':
+          return `
+            <div class="bg-white p-4 rounded">
+              <h3 class="text-lg font-bold mb-2">Job Scope</h3>
+              ${currentJob.scopeImage ? `
+                <img src="${currentJob.scopeImage}" alt="Scope" class="max-w-full h-auto mb-2" />
+                <button onclick="removeImage('scope')" class="p-1 bg-red-600 rounded text-white">Remove Image</button>
+              ` : `
+                <textarea id="scope-text" class="w-full p-2 bg-white rounded border border-gray-300 mb-2" rows="5">${currentJob.scopeText || ''}</textarea>
+                ${renderDynamicTable(currentJob.scope, currentJob.scopeColumns, 'scope')}
+                <input type="file" id="scope-image" accept="image/*" class="mb-2" />
+                <input id="scope-new-column" placeholder="New Column Name" class="p-1 bg-white rounded border border-gray-300 mr-2" />
+                <button onclick="addColumn('scope')" class="p-1 bg-blue-700 rounded text-white">Add Column</button>
+              `}
+            </div>
+          `;
+        case 'quote':
+          return `
+            <div class="bg-white p-4 rounded">
+              <h3 class="text-lg font-bold mb-2">Job Quote</h3>
+              ${currentJob.quoteImage ? `
+                <img src="${currentJob.quoteImage}" alt="Quote" class="max-w-full h-auto mb-2" />
+                <button onclick="removeImage('quote')" class="p-1 bg-red-600 rounded text-white">Remove Image</button>
+              ` : `
+                <textarea id="quote-text" class="w-full p-2 bg-white rounded border border-gray-300 mb-2" rows="5">${currentJob.quoteText || ''}</textarea>
+                ${renderDynamicTable(currentJob.quote, currentJob.quoteColumns, 'quote')}
+                <input type="file" id="quote-image" accept="image/*" class="mb-2" />
+                <input id="quote-new-column" placeholder="New Column Name" class="p-1 bg-white rounded border border-gray-300 mr-2" />
+                <button onclick="addColumn('quote')" class="p-1 bg-blue-700 rounded text-white">Add Column</button>
+              `}
+            </div>
+          `;
+        default:
+          return '';
+      }
+    }
+
+    function renderTable(data, type, columns) {
+      const total = data.reduce((sum, row) => sum + (parseFloat(row.cost) || 0), 0).toFixed(2);
+      return `
+        <table class="min-w-full bg-white rounded border border-gray-300">
+          <thead>
+            <tr class="bg-gray-100">
+              ${columns.map(col => `<th class="p-2 text-left border-b">${col.label}</th>`).join('')}
+              <th class="p-2 text-left border-b">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="${type}-table-body">
+            ${data.map(row => `
+              <tr>
+                ${columns.map(col => `
+                  <td class="p-2 border-b">
+                    ${col.type === 'select' ? `
+                      <select class="p-1 bg-white rounded w-full border border-gray-300" onchange="updateRow('${type}', '${row.id}', '${col.key}', this.value)">
+                        <option value="">Select</option>
+                        ${col.options.map(opt => `
+                          <option value="${opt.value}" style="background-color: ${opt.color}" ${row[col.key] === opt.value ? 'selected' : ''}>${opt.value}</option>
+                        `).join('')}
+                      </select>
+                    ` : col.type === 'date' ? `
+                      <input type="date" value="${row[col.key]}" class="p-1 bg-white rounded w-full border border-gray-300" onchange="updateRow('${type}', '${row.id}', '${col.key}', this.value)" />
+                    ` : `
+                      <div contenteditable="true" class="editable p-1" onblur="updateRow('${type}', '${row.id}', '${col.key}', this.innerText)">${row[col.key]}</div>
+                    `}
+                  </td>
+                `).join('')}
+                <td class="p-2 border-b">
+                  <button onclick="deleteRow('${type}', '${row.id}')" class="p-1 bg-red-600 rounded text-white">Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+            <tr>
+              ${columns.map(col => `
+                <td class="p-2 border-b">
+                  ${col.type === 'select' ? `
+                    <select id="new-${type}-${col.key}" class="p-1 bg-white rounded w-full border border-gray-300">
+                      <option value="">Select</option>
+                      ${col.options.map(opt => `
+                        <option value="${opt.value}" style="background-color: ${opt.color}">${opt.value}</option>
+                      `).join('')}
+                    </select>
+                  ` : `
+                    <input type="${col.type === 'date' ? 'date' : 'text'}" id="new-${type}-${col.key}" class="p-1 bg-white rounded w-full border border-gray-300" />
+                  `}
+                </td>
+              `).join('')}
+              <td class="p-2 border-b">
+                <button onclick="addRow('${type}')" class="p-1 bg-blue-700 rounded text-white">Add</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="p-2 border-b font-bold" colspan="${columns.length - 1}">Total</td>
+              <td class="p-2 border-b font-bold">$${total}</td>
+              <td class="p-2 border-b"></td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+    }
+
+    function renderDynamicTable(data, columns, type) {
+      return `
+        <table class="min-w-full bg-white rounded border border-gray-300">
+          <thead>
+            <tr class="bg-gray-100">
+              ${columns.map(col => `
+                <th class="p-2 text-left border-b">
+                  ${col.label}
+                  <button onclick="deleteColumn('${type}', '${col.key}')" class="ml-2 p-1 bg-red-600 rounded text-white text-sm">X</button>
+                </th>
+              `).join('')}
+              <th class="p-2 text-left border-b">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="${type}-table-body">
+            ${data.map(row => `
+              <tr>
+                ${columns.map(col => `
+                  <td class="p-2 border-b">
+                    <div contenteditable="true" class="editable p-1" onblur="updateDynamicRow('${type}', '${row.id}', '${col.key}', this.innerText)">${row[col.key]}</div>
+                  </td>
+                `).join('')}
+                <td class="p-2 border-b">
+                  <button onclick="deleteDynamicRow('${type}', '${row.id}')" class="p-1 bg-red-600 rounded text-white">Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+            <tr>
+              ${columns.map(col => `
+                <td class="p-2 border-b">
+                  <input id="new-${type}-${col.key}" class="p-1 bg-white rounded w-full border border-gray-300" />
+                </td>
+              `).join('')}
+              <td class="p-2 border-b">
+                <button onclick="addDynamicRow('${type}')" class="p-1 bg-blue-700 rounded text-white">Add</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+    }
+
+    window.addRow = async (type) => {
+      if (!auth.currentUser || !currentJob) return;
+      const newRow = { id: generateUUID() };
+      const columns = type === 'revenue' ? [
+        { key: 'date', type: 'date' },
+        { key: 'purchase', type: 'text' },
+        { key: 'method', type: 'select' },
+        { key: 'cost', type: 'text' }
+      ] : [
+        { key: 'date', type: 'date' },
+        { key: 'purchase', type: 'text' },
+        { key: 'method', type: 'select' },
+        { key: 'cost', type: 'text' },
+        { key: 'vendor', type: 'select' }
+      ];
+      let valid = true;
+      columns.forEach(col => {
+        const input = document.getElementById(`new-${type}-${col.key}`);
+        if (input.value) {
+          newRow[col.key] = input.value;
+          input.value = '';
+        } else {
+          valid = false;
+        }
+      });
+      if (valid) {
+        currentJob[type].push(newRow);
+        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        showJobPage(currentJob.id);
+      }
+    };
+
+    window.updateRow = async (type, id, key, value) => {
+      if (!auth.currentUser || !currentJob) return;
+      const row = currentJob[type].find(r => r.id === id);
+      if (row) {
+        row[key] = value;
+        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        showJobPage(currentJob.id);
+      }
+    };
+
+    window.deleteRow = async (type, id) => {
+      if (!auth.currentUser || !currentJob) return;
+      currentJob[type] = currentJob[type].filter(r => r.id !== id);
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+      showJobPage(currentJob.id);
+    };
+
+    window.addDynamicRow = async (type) => {
+      if (!auth.currentUser || !currentJob) return;
+      const newRow = { id: generateUUID() };
+      const columns = currentJob[`${type}Columns`];
+      let valid = true;
+      columns.forEach(col => {
+        const input = document.getElementById(`new-${type}-${col.key}`);
+        if (input.value) {
+          newRow[col.key] = input.value;
+          input.value = '';
+        } else {
+          valid = false;
+        }
+      });
+      if (valid) {
+        currentJob[type].push(newRow);
+        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        showJobPage(currentJob.id);
+      }
+    };
+
+    window.updateDynamicRow = async (type, id, key, value) => {
+      if (!auth.currentUser || !currentJob) return;
+      const row = currentJob[type].find(r => r.id === id);
+      if (row) {
+        row[key] = value;
+        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        showJobPage(currentJob.id);
+      }
+    };
+
+    window.deleteDynamicRow = async (type, id) => {
+      if (!auth.currentUser || !currentJob) return;
+      currentJob[type] = currentJob[type].filter(r => r.id !== id);
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+      showJobPage(currentJob.id);
+    };
+
+    window.addColumn = async (type) => {
+      if (!auth.currentUser || !currentJob) return;
+      const input = document.getElementById(`${type}-new-column`);
+      const label = input.value;
+      if (label) {
+        const key = label.toLowerCase().replace(/\s+/g, '_');
+        currentJob[`${type}Columns`].push({ key, label });
+        currentJob[type].forEach(row => row[key] = '');
+        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        showJobPage(currentJob.id);
+        input.value = '';
+      }
+    };
+
+    window.deleteColumn = async (type, key) => {
+      if (!auth.currentUser || !currentJob) return;
+      currentJob[`${type}Columns`] = currentJob[`${type}Columns`].filter(col => col.key !== key);
+      currentJob[type].forEach(row => delete row[key]);
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+      showJobPage(currentJob.id);
+    };
+
+    // Text and image handling
+    function setupTextAndImageListeners() {
+      const scopeText = document.getElementById('scope-text');
+      const quoteText = document.getElementById('quote-text');
+      const scopeImage = document.getElementById('scope-image');
+      const quoteImage = document.getElementById('quote-image');
+
+      if (scopeText) {
+        scopeText.addEventListener('input', async () => {
+          if (!auth.currentUser) return;
+          currentJob.scopeText = scopeText.value;
+          await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        });
+      }
+
+      if (quoteText) {
+        quoteText.addEventListener('input', async () => {
+          if (!auth.currentUser) return;
+          currentJob.quoteText = quoteText.value;
+          await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        });
+      }
+
+      if (scopeImage) {
+        scopeImage.addEventListener('change', async (e) => {
+          if (!auth.currentUser) return;
+          const file = e.target.files[0];
+          if (file) {
+            const storageRef = ref(storage, `users/${auth.currentUser.uid}/jobs/${currentJob.id}/scope`);
+            await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(storageRef);
+            currentJob.scopeImage = url;
+            currentJob.scopeText = '';
+            currentJob.scope = [{ id: generateUUID(), Description: '' }];
+            currentJob.scopeColumns = [{ key: 'Description', label: 'Description' }];
+            await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+            showJobPage(currentJob.id);
+          }
+        });
+      }
+
+      if (quoteImage) {
+        quoteImage.addEventListener('change', async (e) => {
+          if (!auth.currentUser) return;
+          const file = e.target.files[0];
+          if (file) {
+            const storageRef = ref(storage, `users/${auth.currentUser.uid}/jobs/${currentJob.id}/quote`);
+            await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(storageRef);
+            currentJob.quoteImage = url;
+            currentJob.quoteText = '';
+            currentJob.quote = [{ id: generateUUID(), Description: '' }];
+            currentJob.quoteColumns = [{ key: 'Description', label: 'Description' }];
+            await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+            showJobPage(currentJob.id);
+          }
+        });
+      }
+    }
+
+    window.removeImage = async (type) => {
+      if (!auth.currentUser || !currentJob) return;
+      currentJob[`${type}Image`] = null;
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+      showJobPage(currentJob.id);
+    };
+
+    // Drag and drop
+    function setupDragAndDrop() {
+      const draggables = document.querySelectorAll('.draggable');
+      const container = document.getElementById('job-sections');
+
+      draggables.forEach(draggable => {
+        draggable.addEventListener('dragstart', () => {
+          draggable.classList.add('dragging');
+        });
+
+        draggable.addEventListener('dragend', () => {
+          draggable.classList.remove('dragging');
+        });
+      });
+
+      container.addEventListener('dragover', e => {
+        e.preventDefault();
+        const afterElement = getDragAfterElement(container, e.clientY);
+        const dragging = document.querySelector('.dragging');
+        if (afterElement == null) {
+          container.appendChild(dragging);
+        } else {
+          container.insertBefore(dragging, afterElement);
+        }
+      });
+
+      function getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('.draggable:not(.dragging)')];
+        return draggableElements.reduce((closest, child) => {
+          const box = child.getBoundingClientRect();
+          const offset = y - box.top - box.height / 2;
+          if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+          } else {
+            return closest;
+          }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+      }
+
+      setupTextAndImageListeners();
+    }
+
+    // Initial render
+    function renderHome() {
+      fetchData();
+      renderJobsTable();
+    }
+  </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9361ea1ac922ad5c',t:'MTc0NTYyNjgyOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+</body>
+</html>
