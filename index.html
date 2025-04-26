@@ -9,7 +9,7 @@
     body { background-color: #ffffff; color: #1f2937; font-family: sans-serif; }
     .draggable { cursor: move; }
     .draggable.dragging { opacity: 0.5; }
-    .calendar-day { min-h-[80px] sm:min-h-[100px] border: 1px solid #e5e7eb; padding: 4px; }
+    .calendar-day { min-h-[80px] sm:min-h-[100px]; border: 1px solid #e5e7eb; padding: 4px; }
     .calendar-day.today { background-color: #e0f2fe; }
     .editable:hover { background-color: #f3f4f6; }
     .progress-select { min-width: 150px; }
@@ -22,7 +22,7 @@
       <h1 class="text-xl font-bold">Invictus Construction Sarnia</h1>
       <div id="nav-links" class="flex space-x-4">
         <button onclick="goHome()" class="hover:text-gray-300">Home</button>
-        <button id="logout-btn" class="hover:text-gray-300 hidden">Logout</button>
+        <button id="logout-btn" class="hover:text-gray-300 hidden" onclick="logout()">Logout</button>
       </div>
     </div>
   </nav>
@@ -33,16 +33,18 @@
       <h2 class="text-2xl font-bold mb-4">Login</h2>
       <form id="login-form">
         <input
-          type="email"
-          id="email"
-          placeholder="Email"
+          type="text"
+          id="username"
+          placeholder="Username"
           class="w-full p-2 mb-4 bg-white rounded border border-gray-300 text-gray-900"
+          required
         />
         <input
           type="password"
           id="password"
           placeholder="Password"
           class="w-full p-2 mb-4 bg-white rounded border border-gray-300 text-gray-900"
+          required
         />
         <button type="submit" class="w-full p-2 bg-blue-700 rounded hover:bg-blue-600 text-white">
           Login
@@ -135,37 +137,87 @@
     <div id="job-sections" class="space-y-4"></div>
   </div>
 
-  <!-- Firebase SDK -->
-  <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js';
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js';
-    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js';
-    import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-storage.js';
-    import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-analytics.js';
+  <script>
+    // Note: No Firebase dependencies (Authentication, Firestore, Hosting, etc.) are included.
+    // Data is stored in GitHub repository (data/jobs.json) using GitHub API.
 
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_AUTH_DOMAIN",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_STORAGE_BUCKET",
-      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-      appId: "YOUR_APP_ID",
-      measurementId: "YOUR_MEASUREMENT_ID"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
-
-    // GitHub Configuration (Replace with your details)
+    // GitHub Configuration
+    // Generate a Personal Access Token at https://github.com/settings/tokens with 'repo' scope
+    // For production, use a backend to avoid exposing the token (see instructions)
     const githubConfig = {
-      token: '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', // Securely store this (see notes)
-      repo: 'invictus-construction/managementY', // e.g., 'username/invictus-construction'
-      branch: 'main', // or 'gh-pages' if using GitHub Pages
-      path: 'data/jobs.json' // Path in repo where jobs.json will be stored
+      token: 'YOUR_PERSONAL_ACCESS_TOKEN', // Replace with your new PAT (temporary for testing)
+      repo: 'invictus-construction/management', // Your repository
+      branch: 'main', // Change to 'gh-pages' if using that branch for GitHub Pages
+      path: 'data/jobs.json' // Path where jobs.json is stored
     };
+
+    // Hardcoded credentials (insecure for production; use a backend for secure auth)
+    const APP_USERNAME = 'invictus';
+    const APP_PASSWORD = 'construction';
+
+    // State management
+    let jobs = [];
+    let progressPresets = [
+      { value: '0', label: '0%', color: '#EF4444' },
+      { value: '25', label: '25%', color: '#F59E0B' },
+      { value: '50', label: '50%', color: '#3B82F6' },
+      { value: '75', label: '75%', color: '#10B981' },
+      { value: '100', label: '100%', color: '#4CAF50' }
+    ];
+    let vendorPresets = [
+      { value: 'Vendor A', color: '#4CAF50' },
+      { value: 'Vendor B', color: '#2196F3' },
+      { value: 'Vendor C', color: '#FFC107' }
+    ];
+    let currentJob = null;
+    let currentDate = new Date();
+    let isAuthenticated = false;
+    let logoImage = null; // Store logo as base64
+
+    // Page management
+    const loginPage = document.getElementById('login-page');
+    const homePage = document.getElementById('home-page');
+    const jobPage = document.getElementById('job-page');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    function showPage(page) {
+      loginPage.classList.add('hidden');
+      homePage.classList.add('hidden');
+      jobPage.classList.add('hidden');
+      page.classList.remove('hidden');
+    }
+
+    function goHome() {
+      if (isAuthenticated) {
+        showPage(homePage);
+        renderHome();
+      } else {
+        showPage(loginPage);
+      }
+    }
+
+    // Authentication handling (no Firebase Authentication; uses hardcoded username/password)
+    document.getElementById('login-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      if (username === APP_USERNAME && password === APP_PASSWORD) {
+        isAuthenticated = true;
+        logoutBtn.classList.remove('hidden');
+        showPage(homePage);
+        renderHome();
+      } else {
+        alert('Incorrect username or password');
+      }
+    });
+
+    function logout() {
+      isAuthenticated = false;
+      logoutBtn.classList.add('hidden');
+      showPage(loginPage);
+      document.getElementById('username').value = '';
+      document.getElementById('password').value = '';
+    }
 
     // Utility functions
     function generateUUID() {
@@ -186,7 +238,38 @@
       return dates;
     }
 
-    // GitHub API: Get file SHA (needed for updates)
+    // Convert file to base64
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // GitHub API: Fetch jobs.json
+    async function fetchJobsFromGitHub() {
+      try {
+        const response = await fetch(`https://api.github.com/repos/${githubConfig.repo}/contents/${githubConfig.path}?ref=${githubConfig.branch}`, {
+          headers: {
+            'Authorization': `token ${githubConfig.token}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const content = atob(data.content);
+          return JSON.parse(content);
+        }
+        return { jobs: [], progressPresets, vendorPresets, logoImage: null }; // Default if file doesn't exist
+      } catch (error) {
+        console.error('Error fetching jobs from GitHub:', error);
+        return { jobs: [], progressPresets, vendorPresets, logoImage: null };
+      }
+    }
+
+    // GitHub API: Get file SHA
     async function getFileSha() {
       try {
         const response = await fetch(`https://api.github.com/repos/${githubConfig.repo}/contents/${githubConfig.path}?ref=${githubConfig.branch}`, {
@@ -207,8 +290,9 @@
     }
 
     // GitHub API: Update jobs.json
-    async function updateGitHubJobs(jobsData) {
-      const content = JSON.stringify(jobsData, null, 2);
+    async function updateGitHubJobs(data) {
+      if (!isAuthenticated) return;
+      const content = JSON.stringify(data, null, 2);
       const sha = await getFileSha();
       const body = {
         message: `Update jobs.json ${new Date().toISOString()}`,
@@ -235,115 +319,39 @@
         console.log('Successfully updated jobs.json on GitHub');
       } catch (error) {
         console.error('Error updating jobs.json on GitHub:', error);
+        alert('Failed to save changes to GitHub. Changes are local only.');
       }
     }
-
-    // State management
-    let jobs = [];
-    let progressPresets = [
-      { value: '0', label: '0%', color: '#EF4444' },
-      { value: '25', label: '25%', color: '#F59E0B' },
-      { value: '50', label: '50%', color: '#3B82F6' },
-      { value: '75', label: '75%', color: '#10B981' },
-      { value: '100', label: '100%', color: '#4CAF50' }
-    ];
-    let vendorPresets = [
-      { value: 'Vendor A', color: '#4CAF50' },
-      { value: 'Vendor B', color: '#2196F3' },
-      { value: 'Vendor C', color: '#FFC107' }
-    ];
-    let currentJob = null;
-    let currentDate = new Date();
-
-    // Page management
-    const loginPage = document.getElementById('login-page');
-    const homePage = document.getElementById('home-page');
-    const jobPage = document.getElementById('job-page');
-    const logoutBtn = document.getElementById('logout-btn');
-
-    function showPage(page) {
-      loginPage.classList.add('hidden');
-      homePage.classList.add('hidden');
-      jobPage.classList.add('hidden');
-      page.classList.remove('hidden');
-    }
-
-    function goHome() {
-      showPage(homePage);
-      renderHome();
-    }
-
-    // Authentication handling
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        showPage(homePage);
-        logoutBtn.classList.remove('hidden');
-        renderHome();
-      } else {
-        showPage(loginPage);
-        logoutBtn.classList.add('hidden');
-      }
-    });
-
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      try {
-        await signInWithEmailAndPassword(auth, email, password);
-      } catch (error) {
-        alert('Login failed: ' + error.message);
-      }
-    });
-
-    document.getElementById('logout-btn').addEventListener('click', async () => {
-      await signOut(auth);
-    });
 
     // Data fetching and syncing
     async function fetchData() {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      // Fetch progress presets
-      const progressDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'progressPresets'));
-      if (progressDoc.exists()) {
-        progressPresets = progressDoc.data().presets || progressPresets;
-      }
-
-      // Fetch vendor presets
-      const vendorDoc = await getDoc(doc(db, 'users', user.uid, 'settings', 'vendorPresets'));
-      if (vendorDoc.exists()) {
-        vendorPresets = vendorDoc.data().presets || vendorPresets;
-      }
-
-      // Fetch jobs with real-time updates and sync to GitHub
-      onSnapshot(collection(db, 'users', user.uid, 'jobs'), (snapshot) => {
-        jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        renderJobsTable();
-        // Sync jobs to GitHub
-        updateGitHubJobs(jobs);
-      });
-
-      // Fetch logo
-      try {
-        const logoUrl = await getDownloadURL(ref(storage, `users/${user.uid}/logo`));
+      if (!isAuthenticated) return;
+      const data = await fetchJobsFromGitHub();
+      jobs = data.jobs || [];
+      progressPresets = data.progressPresets || progressPresets;
+      vendorPresets = data.progressPresets || vendorPresets;
+      logoImage = data.logoImage || null;
+      renderJobsTable();
+      if (logoImage) {
         const logoContainer = document.getElementById('logo-container');
-        logoContainer.innerHTML = `<img src="${logoUrl}" alt="Logo" class="h-12" />`;
-      } catch (error) {
-        // No logo exists
+        logoContainer.innerHTML = `<img src="${logoImage}" alt="Logo" class="h-12" />`;
       }
     }
 
     // Logo upload
     document.getElementById('logo-upload').addEventListener('change', async (e) => {
+      if (!isAuthenticated) return;
       const file = e.target.files[0];
-      if (file && auth.currentUser) {
-        const storageRef = ref(storage, `users/${auth.currentUser.uid}/logo`);
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        const logoContainer = document.getElementById('logo-container');
-        logoContainer.innerHTML = `<img src="${url}" alt="Logo" class="h-12" />`;
+      if (file) {
+        try {
+          logoImage = await fileToBase64(file);
+          const logoContainer = document.getElementById('logo-container');
+          logoContainer.innerHTML = `<img src="${logoImage}" alt="Logo" class="h-12" />`;
+          await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
+        } catch (error) {
+          console.error('Error processing logo:', error);
+          alert('Failed to upload logo');
+        }
       }
     });
 
@@ -396,14 +404,18 @@
     }
 
     window.updateJob = async (id, field, value) => {
-      if (!auth.currentUser) return;
-      const jobRef = doc(db, 'users', auth.currentUser.uid, 'jobs', id);
-      await setDoc(jobRef, { [field]: value }, { merge: true });
+      if (!isAuthenticated) return;
+      const job = jobs.find(j => j.id === id);
+      if (job) {
+        job[field] = value;
+        await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
+        renderJobsTable();
+      }
     };
 
     // Add job
     document.getElementById('add-job-btn').addEventListener('click', async () => {
-      if (!auth.currentUser) return;
+      if (!isAuthenticated) return;
       const name = document.getElementById('new-job-name').value;
       const address = document.getElementById('new-job-address').value;
       const progress = document.getElementById('new-job-progress').value;
@@ -428,19 +440,23 @@
           scopeImage: null,
           quoteImage: null
         };
-        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', job.id), job);
+        jobs.push(job);
+        await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
         document.getElementById('new-job-name').value = '';
         document.getElementById('new-job-address').value = '';
         document.getElementById('new-job-progress').value = progressPresets[0].value;
         document.getElementById('new-job-start').value = '';
         document.getElementById('new-job-end').value = '';
+        renderJobsTable();
       }
     });
 
     // Delete job
     window.deleteJob = async (id) => {
-      if (!auth.currentUser) return;
-      await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', id));
+      if (!isAuthenticated) return;
+      jobs = jobs.filter(j => j.id !== id);
+      await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
+      renderJobsTable();
     };
 
     // Presets management
@@ -459,20 +475,20 @@
     }
 
     window.deleteProgressPreset = async (value) => {
-      if (!auth.currentUser) return;
+      if (!isAuthenticated) return;
       progressPresets = progressPresets.filter(p => p.value !== value);
-      await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'progressPresets'), { presets: progressPresets });
+      await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
       renderJobsTable();
     };
 
     document.getElementById('add-progress-preset').addEventListener('click', async () => {
-      if (!auth.currentUser) return;
+      if (!isAuthenticated) return;
       const value = document.getElementById('progress-value').value;
       const label = document.getElementById('progress-label').value;
       const color = document.getElementById('progress-color').value;
       if (value && label && color) {
         progressPresets.push({ value, label, color });
-        await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'progressPresets'), { presets: progressPresets });
+        await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
         renderJobsTable();
         document.getElementById('progress-value').value = '';
         document.getElementById('progress-label').value = '';
@@ -495,18 +511,18 @@
     }
 
     window.deleteVendorPreset = async (value) => {
-      if (!auth.currentUser) return;
+      if (!isAuthenticated) return;
       vendorPresets = vendorPresets.filter(p => p.value !== value);
-      await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'vendorPresets'), { presets: vendorPresets });
+      await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
       renderJobsTable();
     };
 
     document.getElementById('add-vendor-preset').addEventListener('click', async () => {
-      if (!auth.currentUser) return;
+      if (!isAuthenticated) return;
       const value = document.getElementById('vendor-value').value;
       if (value) {
         vendorPresets.push({ value, color: '#000000' });
-        await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'vendorPresets'), { presets: vendorPresets });
+        await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
         renderJobsTable();
         document.getElementById('vendor-value').value = '';
       }
@@ -562,6 +578,7 @@
 
     // Job page rendering
     window.showJobPage = async (jobId) => {
+      if (!isAuthenticated) return;
       currentJob = jobs.find(j => j.id === jobId);
       if (!currentJob) return;
       showPage(jobPage);
@@ -761,7 +778,7 @@
     }
 
     window.addRow = async (type) => {
-      if (!auth.currentUser || !currentJob) return;
+      if (!isAuthenticated || !currentJob) return;
       const newRow = { id: generateUUID() };
       const columns = type === 'revenue' ? [
         { key: 'date', type: 'date' },
@@ -787,30 +804,30 @@
       });
       if (valid) {
         currentJob[type].push(newRow);
-        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
         showJobPage(currentJob.id);
       }
     };
 
     window.updateRow = async (type, id, key, value) => {
-      if (!auth.currentUser || !currentJob) return;
+      if (!isAuthenticated || !currentJob) return;
       const row = currentJob[type].find(r => r.id === id);
       if (row) {
         row[key] = value;
-        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
         showJobPage(currentJob.id);
       }
     };
 
     window.deleteRow = async (type, id) => {
-      if (!auth.currentUser || !currentJob) return;
+      if (!isAuthenticated || !currentJob) return;
       currentJob[type] = currentJob[type].filter(r => r.id !== id);
-      await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+      await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
       showJobPage(currentJob.id);
     };
 
     window.addDynamicRow = async (type) => {
-      if (!auth.currentUser || !currentJob) return;
+      if (!isAuthenticated || !currentJob) return;
       const newRow = { id: generateUUID() };
       const columns = currentJob[`${type}Columns`];
       let valid = true;
@@ -825,47 +842,47 @@
       });
       if (valid) {
         currentJob[type].push(newRow);
-        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
         showJobPage(currentJob.id);
       }
     };
 
     window.updateDynamicRow = async (type, id, key, value) => {
-      if (!auth.currentUser || !currentJob) return;
+      if (!isAuthenticated || !currentJob) return;
       const row = currentJob[type].find(r => r.id === id);
       if (row) {
         row[key] = value;
-        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
         showJobPage(currentJob.id);
       }
     };
 
     window.deleteDynamicRow = async (type, id) => {
-      if (!auth.currentUser || !currentJob) return;
+      if (!isAuthenticated || !currentJob) return;
       currentJob[type] = currentJob[type].filter(r => r.id !== id);
-      await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+      await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
       showJobPage(currentJob.id);
     };
 
     window.addColumn = async (type) => {
-      if (!auth.currentUser || !currentJob) return;
+      if (!isAuthenticated || !currentJob) return;
       const input = document.getElementById(`${type}-new-column`);
       const label = input.value;
       if (label) {
         const key = label.toLowerCase().replace(/\s+/g, '_');
         currentJob[`${type}Columns`].push({ key, label });
         currentJob[type].forEach(row => row[key] = '');
-        await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+        await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
         showJobPage(currentJob.id);
         input.value = '';
       }
     };
 
     window.deleteColumn = async (type, key) => {
-      if (!auth.currentUser || !currentJob) return;
+      if (!isAuthenticated || !currentJob) return;
       currentJob[`${type}Columns`] = currentJob[`${type}Columns`].filter(col => col.key !== key);
       currentJob[type].forEach(row => delete row[key]);
-      await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+      await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
       showJobPage(currentJob.id);
     };
 
@@ -878,61 +895,65 @@
 
       if (scopeText) {
         scopeText.addEventListener('input', async () => {
-          if (!auth.currentUser) return;
+          if (!isAuthenticated) return;
           currentJob.scopeText = scopeText.value;
-          await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+          await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
         });
       }
 
       if (quoteText) {
         quoteText.addEventListener('input', async () => {
-          if (!auth.currentUser) return;
+          if (!isAuthenticated) return;
           currentJob.quoteText = quoteText.value;
-          await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+          await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
         });
       }
 
       if (scopeImage) {
         scopeImage.addEventListener('change', async (e) => {
-          if (!auth.currentUser) return;
+          if (!isAuthenticated) return;
           const file = e.target.files[0];
           if (file) {
-            const storageRef = ref(storage, `users/${auth.currentUser.uid}/jobs/${currentJob.id}/scope`);
-            await uploadBytes(storageRef, file);
-            const url = await getDownloadURL(storageRef);
-            currentJob.scopeImage = url;
-            currentJob.scopeText = '';
-            currentJob.scope = [{ id: generateUUID(), Description: '' }];
-            currentJob.scopeColumns = [{ key: 'Description', label: 'Description' }];
-            await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
-            showJobPage(currentJob.id);
+            try {
+              currentJob.scopeImage = await fileToBase64(file);
+              currentJob.scopeText = '';
+              currentJob.scope = [{ id: generateUUID(), Description: '' }];
+              currentJob.scopeColumns = [{ key: 'Description', label: 'Description' }];
+              await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
+              showJobPage(currentJob.id);
+            } catch (error) {
+              console.error('Error processing scope image:', error);
+              alert('Failed to upload scope image');
+            }
           }
         });
       }
 
       if (quoteImage) {
         quoteImage.addEventListener('change', async (e) => {
-          if (!auth.currentUser) return;
+          if (!isAuthenticated) return;
           const file = e.target.files[0];
           if (file) {
-            const storageRef = ref(storage, `users/${auth.currentUser.uid}/jobs/${currentJob.id}/quote`);
-            await uploadBytes(storageRef, file);
-            const url = await getDownloadURL(storageRef);
-            currentJob.quoteImage = url;
-            currentJob.quoteText = '';
-            currentJob.quote = [{ id: generateUUID(), Description: '' }];
-            currentJob.quoteColumns = [{ key: 'Description', label: 'Description' }];
-            await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
-            showJobPage(currentJob.id);
+            try {
+              currentJob.quoteImage = await fileToBase64(file);
+              currentJob.quoteText = '';
+              currentJob.quote = [{ id: generateUUID(), Description: '' }];
+              currentJob.quoteColumns = [{ key: 'Description', label: 'Description' }];
+              await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
+              showJobPage(currentJob.id);
+            } catch (error) {
+              console.error('Error processing quote image:', error);
+              alert('Failed to upload quote image');
+            }
           }
         });
       }
     }
 
     window.removeImage = async (type) => {
-      if (!auth.currentUser || !currentJob) return;
+      if (!isAuthenticated || !currentJob) return;
       currentJob[`${type}Image`] = null;
-      await setDoc(doc(db, 'users', auth.currentUser.uid, 'jobs', currentJob.id), currentJob);
+      await updateGitHubJobs({ jobs, progressPresets, vendorPresets, logoImage });
       showJobPage(currentJob.id);
     };
 
@@ -983,7 +1004,14 @@
       fetchData();
       renderJobsTable();
     }
+
+    // Initial check
+    if (isAuthenticated) {
+      showPage(homePage);
+      renderHome();
+    } else {
+      showPage(loginPage);
+    }
   </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9361ea1ac922ad5c',t:'MTc0NTYyNjgyOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
