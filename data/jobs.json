@@ -1,16 +1,33 @@
 {
-  "jobs": [],
-  "progressPresets": [
-    { "value": "0", "label": "0%", "color": "#EF4444" },
-    { "value": "25", "label": "25%", "color": "#F59E0B" },
-    { "value": "50", "label": "50%", "color": "#3B82F6" },
-    { "value": "75", "label": "75%", "color": "#10B981" },
-    { "value": "100", "label": "100%", "color": "#4CAF50" }
-  ],
-  "vendorPresets": [
-    { "value": "Vendor A", "color": "#4CAF50" },
-    { "value": "Vendor B", "color": "#2196F3" },
-    { "value": "Vendor C", "color": "#FFC107" }
-  ],
-  "logoImage": null
-}
+  "jobs": [
+    {
+      "id": "template",
+      "title": "Template Job",
+      "client": "Template Client",
+      "location": "Template Location",
+      "startDate": "YYYY-MM-DD",
+      "endDate": "YYYY-MM-DD",
+      "status": "Template Status",
+      "description": "Template description",
+      "team": ["Template Team Member"],
+      "materials": [
+        {
+          "name": "Template Material",
+          "quantity": 0,
+          "unit": "units"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "template-task",
+          "title": "Template Task",
+          "status": "Template Status",
+          "assignedTo": "Template Team Member",
+          "dueDate": "YYYY-MM-DD"
+        }
+      ],
+      "revenue": [],
+      "expenses": []
+    }
+  ]
+} 

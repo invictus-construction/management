@@ -1,0 +1,17 @@
+{
+  "name": "invictus-construction-management",
+  "version": "1.0.0",
+  "description": "Invictus Construction Sarnia Management Tool",
+  "main": "index.html",
+  "scripts": {
+    "start": "live-server",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "firebase": "^11.6.1",
+    "tailwindcss": "^3.4.1"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.0"
+  }
+}
